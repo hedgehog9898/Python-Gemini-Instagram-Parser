@@ -1,0 +1,5 @@
+flask
+instaloader
+opencv-python-headless
+google-generativeai
+python-dotenv

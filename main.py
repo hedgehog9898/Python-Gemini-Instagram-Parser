@@ -4,6 +4,7 @@ import os
 import glob
 import cv2
 import base64
+import json
 from dotenv import load_dotenv
 import google.generativeai as genai
 from flask import Flask, request, jsonify
@@ -48,26 +49,39 @@ def base64_from_file(path):
 def analyze_with_gemini(image_path, audio_path):
     image_data = base64_from_file(image_path)
     audio_data = base64_from_file(audio_path)
+
     prompt = (
         "Определи название фильмов, книг, сериалов, аниме или игр на основе следующего скриншота и аудио. "
         "Указывай ВСЕ названия, которые найдешь и как они представлены в тексте или на скриншоте. Не меняй оригинальных авторов и названия. "
         "Ответь кратко и укажи точное название. Если названий несколько, то указывай их по порядку через запятую с пробелом. "
-        "Отвечай по шаблону: название1, название2, название3. "
-        "Если не уверен — скажи 'Не удалось определить'."
+        "Также ты должен определить тип того, что ты нашел. Type может быть таким: Anime, Book, Film, Series, Game. "
+        "Отвечай в формате JSON, вот так [{ \"name\": \"название1\", \"type\": \"Book\" }] "
+        "Если не смог ничего найти, ответь вот так []"
     )
+
     response = model.generate_content([
         prompt,
         {"mime_type": "image/jpeg", "data": image_data},
         {"mime_type": "audio/wav", "data": audio_data}
     ])
-    return response.text
+
+    raw_text = response.text.strip()
+
+    if raw_text.startswith("```"):
+        raw_text = "\n".join(raw_text.split("\n")[1:-1])
+
+    try:
+        return json.loads(raw_text)
+    except Exception as e:
+        raise ValueError(f"Ошибка парсинга JSON: {e}\nОтвет Gemini: {response.text}")
 
 def process_url(url):
     video_file = download_reel(url)
     extract_audio(video_file, 'audio.wav')
     extract_screenshot(video_file, 'frame.jpg')
+
     result = analyze_with_gemini('frame.jpg', 'audio.wav')
-    return {"detected": result.strip(), "source": url}
+    return {"results": result, "source": url}
 
 @app.route('/parse', methods=['POST'])
 def parse():

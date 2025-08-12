@@ -187,3 +187,4 @@ cython_debug/
 .cursorindexingignore
 frame.jpg
 audio.wav
+.DS_Store
